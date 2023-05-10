@@ -1,6 +1,6 @@
 {
   "name": "@medialib/medialib-manga-source-mangadex",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "This project give you the resources and conventions for mangadex mangas media management, compatible with medialib, addonlib and medialib-manga projects",
   "main": "dist/index.js",
   "prettier": "prettier-config-leopoldhub",
@@ -50,7 +50,7 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "@medialib/medialib-manga": "^0.1.0",
+    "@medialib/medialib-manga": "^0.1.1",
     "axios": "^1.4.0"
   }
 }

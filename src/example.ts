@@ -1,39 +1,38 @@
 import fs from 'fs';
-import MangadexSource from './MangadexSource';
 import { Readable } from 'stream';
 import path from 'path';
 import { Page } from '@medialib/medialib-manga';
+import MangadexMangaSourceAddon from './MangadexMangaSourceAddon';
 
 const downloadFolder = path.normalize('./dl');
 
 if (!fs.existsSync(downloadFolder))
   fs.mkdirSync(downloadFolder, { recursive: true });
 
-const mangadexSource = new MangadexSource();
-mangadexSource.setSettings({
-  ...mangadexSource.getSettings(),
-  defaultLanguage: 'en',
+const sourceAddon = new MangadexMangaSourceAddon({});
+const source = sourceAddon.getSource();
+
+source.setSettings({
+  ...source.getSettings(),
+  defaultLanguage: 'fr',
 });
 
 (async () => {
-  const mangaFetchResult = await mangadexSource.fetch({ text: 'love is war' });
+  const mangaFetchResult = await source.fetch({ text: 'love is war' });
 
   const manga = mangaFetchResult.content[0];
   console.log('mangas found:', mangaFetchResult.content.length);
   console.log('first one:', manga);
 
-  const chapterFetchResult = await mangadexSource.fetchChaptersByManga(
-    manga,
-    {}
-  );
+  const chapterFetchResult = await source.fetchChaptersByManga(manga, {});
 
   const chapter = chapterFetchResult.content[0];
   console.log('chapters found:', chapterFetchResult.content.length);
   console.log('first one:', chapter);
 
-  const pageFetchResult = await mangadexSource.fetchPagesByChapter(chapter, {});
+  const pageFetchResult = await source.fetchPagesByChapter(chapter, {});
 
-  const page = pageFetchResult.content[2];
+  const page = pageFetchResult.content[1];
 
   console.log('chapters found:', pageFetchResult.content.length);
   console.log('first one:', page);
