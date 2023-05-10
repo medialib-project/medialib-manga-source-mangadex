@@ -60,6 +60,7 @@ export function flattenRawVolumes(rawAggregateVolumes: rawAggregateVolumes) {
 
 export function sortChaptersByNumberAsc(chapters: Array<Chapter>) {
   return chapters.sort(
-    (c1, c2) => parseFloat(c1.getNumber()) - parseFloat(c2.getNumber())
+    (c1, c2) =>
+      parseFloat(c1.getDetails().number) - parseFloat(c2.getDetails().number)
   );
 }

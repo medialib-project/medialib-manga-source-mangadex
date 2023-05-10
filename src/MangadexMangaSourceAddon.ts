@@ -2,14 +2,30 @@ import {
   AbstractAddon,
   AbstractMangaSource,
   AbstractMangaSourceAddon,
-  addonResourcesType,
-  sourceSettingsType,
 } from '@medialib/medialib-manga';
 import MangadexSource from './MangadexSource';
+import {
+  mangadexSourceAddonDetails,
+  mangadexSourceAddonResources,
+} from './mangadexSourceAddonTypes';
+import { mangadexSourceSettings } from './mangadexSourceTypes';
 
-export default class MangadexMangaSourceAddon extends AbstractMangaSourceAddon {
-  constructor(instances: addonResourcesType, settings?: sourceSettingsType) {
-    super(instances, settings);
+export default class MangadexMangaSourceAddon<
+  T extends MangadexSource = MangadexSource,
+  U extends mangadexSourceAddonDetails = mangadexSourceAddonDetails,
+  V extends mangadexSourceAddonResources = mangadexSourceAddonResources,
+  W extends mangadexSourceSettings = mangadexSourceSettings
+> extends AbstractMangaSourceAddon<T, U, V, W> {
+  public constructor(
+    resources: V,
+    details?: U,
+    source = MangadexSource as unknown as new () => T
+  ) {
+    super(
+      resources,
+      { ...{ type: 'media-source.manga' }, ...details } as U,
+      source
+    );
   }
 
   public getSourceClass() {

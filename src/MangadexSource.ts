@@ -16,13 +16,14 @@ import {
   arrayUtils,
   objectUtils,
   promiseUtils,
-  sourceSettingsDefinitionType,
-  mangaSourceOptionsType,
-  pageSourceOptionsType,
-  fetchPageResultType,
-  fetchMangaResultType,
-  chapterSourceOptionsType,
-  sourceSettingsType,
+  mangaSourceFetchOption,
+  mangaSourceFetchResult,
+  chapterSourceFetchOption,
+  chapterSourceFetchResult,
+  pageSourceFetchOption,
+  pageSourceFetchResult,
+  optionDefinition,
+  optionUtils,
 } from '@medialib/medialib-manga';
 import {
   rawAuthor,
@@ -31,28 +32,50 @@ import {
   rawFetchedPageData,
   rawManga,
 } from './rawTypes.js';
-import { mangadexSourceSettingsType } from './mangadexTypes.js';
+import { mangadexSourceSettings } from './mangadexSourceTypes.js';
 import { ReadableStream } from 'stream/web';
 
 const MANGADEX_ELEMENT_NUMBER_LIMIT = 100;
+const MANGADEX_API_URL = 'https://api.mangadex.org';
+const DEFAULT_USER_AGENT =
+  'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/112.0';
 
-export default class MangadexSource extends AbstractMangaSource {
-  protected static settingsDefinition: sourceSettingsDefinitionType = {
-    url: { type: 'string' },
-    userAgent: { type: 'string' },
-    languages: { type: 'array', value: { type: 'string' } },
-  };
-  protected static defaultSettings: mangadexSourceSettingsType = {
-    url: 'https://api.mangadex.org',
-    userAgent:
-      'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/112.0',
-    languages: ['en'],
-  };
+export default class MangadexSource<
+  T extends mangadexSourceSettings = mangadexSourceSettings,
+  U extends mangaSourceFetchOption = mangaSourceFetchOption,
+  V extends mangaSourceFetchResult = mangaSourceFetchResult,
+  W extends chapterSourceFetchOption = chapterSourceFetchOption,
+  X extends chapterSourceFetchResult = chapterSourceFetchResult,
+  Y extends pageSourceFetchOption = pageSourceFetchOption,
+  Z extends pageSourceFetchResult = pageSourceFetchResult
+> extends AbstractMangaSource<T, U, V, W, X, Y, Z> {
+  private static settingsDefinition: optionDefinition<mangadexSourceSettings> =
+    {
+      url: {
+        type: 'string',
+        label: 'url',
+        defaultValue: MANGADEX_API_URL,
+        required: true,
+      },
+      userAgent: {
+        type: 'string',
+        label: 'user agent',
+        defaultValue: DEFAULT_USER_AGENT,
+        required: false,
+      },
+      defaultLanguage: {
+        type: 'string',
+        label: 'languages',
+        defaultValue: 'en',
+      },
+    };
 
   protected webInstance!: AxiosInstance;
 
-  public constructor(settings?: sourceSettingsType) {
-    super(settings);
+  public constructor(
+    settingsDefinition = MangadexSource.settingsDefinition as optionDefinition<T>
+  ) {
+    super(settingsDefinition);
   }
 
   public resetWebInstance() {
@@ -69,29 +92,29 @@ export default class MangadexSource extends AbstractMangaSource {
     });
   }
 
-  public getSettings(): mangadexSourceSettingsType {
-    return super.getSettings() as mangadexSourceSettingsType;
-  }
-
-  //TODO: add mangadex options
-  //@ts-ignore
   public async getFetchOptionsDefinition() {
     return {
-      limit: { type: 'integer', value: MANGADEX_ELEMENT_NUMBER_LIMIT },
-      offset: { type: 'integer', value: 0 },
-    };
+      limit: { type: 'number', defaultValue: MANGADEX_ELEMENT_NUMBER_LIMIT },
+      offset: { type: 'number', defaultValue: 0 },
+      ids: { type: 'array' },
+      text: { type: 'string' },
+      language: {
+        type: 'string',
+        defaultValue: this.getSettings().defaultLanguage,
+      },
+    } as optionDefinition<U>;
   }
 
-  public async fetchMangas(
-    options: mangaSourceOptionsType
-  ): Promise<fetchMangaResultType> {
-    const { languages } = this.getSettings();
+  public async fetchMangas(options: U) {
+    const { defaultLanguage } = this.getSettings();
+    const language = options.language || defaultLanguage;
     const queryOptions = {
-      availableTranslatedLanguage: languages,
-      limit: MANGADEX_ELEMENT_NUMBER_LIMIT,
-      ...options,
+      availableTranslatedLanguage: [language],
+      limit: options.limit || MANGADEX_ELEMENT_NUMBER_LIMIT,
+      offset: options.offset,
+      ids: options.ids,
+      title: options.text,
     };
-    const wantedLanguages = queryOptions.availableTranslatedLanguage || [];
 
     return this.webInstance
       .get('/manga', { params: queryOptions })
@@ -122,16 +145,10 @@ export default class MangadexSource extends AbstractMangaSource {
             authorId && rawAuthor ? [rawAuthor.attributes.name] : [];
 
           const rawTags = mangaData.attributes.tags;
-          const tags = getRawTagsWithPreferences(rawTags, wantedLanguages);
-          const genres = getRawGenresWithPreferences(rawTags, wantedLanguages);
-          const themes = getRawThemesWithPreferences(rawTags, wantedLanguages);
-          const formats = getRawFormatsWithPreferences(
-            rawTags,
-            wantedLanguages
-          );
-
-          const availableLanguages =
-            mangaData.attributes.availableTranslatedLanguages.filter((l) => l);
+          const tags = getRawTagsWithPreferences(rawTags, [language]);
+          const genres = getRawGenresWithPreferences(rawTags, [language]);
+          const themes = getRawThemesWithPreferences(rawTags, [language]);
+          const formats = getRawFormatsWithPreferences(rawTags, [language]);
 
           return new Manga({
             id: mangaData.id,
@@ -140,53 +157,51 @@ export default class MangadexSource extends AbstractMangaSource {
                 mangaData.attributes.title,
                 ...mangaData.attributes.altTitles
               ),
-              wantedLanguages
+              queryOptions.availableTranslatedLanguage
             ),
             authors: authors,
             description: objectUtils.getValueFromKeysWithPreferencesOrFirst(
               mangaData.attributes.description,
-              wantedLanguages
+              queryOptions.availableTranslatedLanguage
             ),
-            languages: wantedLanguages.filter((language) =>
-              availableLanguages.includes(language)
-            ),
+            language: language,
             tags: tags,
             genres: genres,
             themes: themes,
             formats: formats,
+            downloadCover: () => Promise.resolve(null),
           });
         });
 
-        return result;
+        return result as V;
       });
   }
 
-  public async fetchMangaById(id: string): Promise<fetchMangaResultType> {
+  public async fetchMangaById(id: string, options: U) {
     return {
+      limit: 1,
+      offset: 0,
+      total: 1,
       content: [
-        await this.fetchMangas({ ids: [id] }).then(({ content }) => content[0]),
+        await this.fetchMangas({ ...options, ids: [id] } as U).then(
+          ({ content }) => content[0]
+        ),
       ],
-    };
+    } as V;
   }
 
-  public async fetchChaptersByManga(
-    manga: Manga,
-    options: chapterSourceOptionsType = {}
-  ) {
-    return this.fetchChaptersByMangaId(manga.getId(), {
-      translatedLanguage: manga.getLanguages(),
+  public async fetchChaptersByManga(manga: Manga, options: W) {
+    return this.fetchChaptersByMangaId(manga.getDetails().id, {
+      language: manga.getDetails().language,
       ...options,
-    });
+    }) as Promise<X>;
   }
 
-  public async fetchChaptersByMangaId(
-    id: string,
-    options: chapterSourceOptionsType = {}
-  ) {
-    const { languages } = this.getSettings();
+  public async fetchChaptersByMangaId(id: string, options: W) {
+    const { defaultLanguage } = this.getSettings();
+    const language = options.language || defaultLanguage;
     const queryOptions = {
-      translatedLanguage: languages,
-      ...options,
+      translatedLanguage: [language],
     };
     const volumeList = this.fetchRawMangaVolumesById(id, queryOptions)
       .then((data) => data.volumes)
@@ -194,12 +209,12 @@ export default class MangadexSource extends AbstractMangaSource {
 
     const volumesIds = (await volumeList).map((volume) => volume.id);
 
-    return this.fetchChapters({ ids: volumesIds });
+    return this.fetchChapters({ ...options, ids: volumesIds }) as Promise<X>;
   }
 
-  public async fetchChapters(options: chapterSourceOptionsType = {}) {
+  public async fetchChapters(options: W) {
     const chapters = await this.fetchRawChaptersByIds(
-      options.ids || [],
+      options?.ids || [],
       options
     ).then((rawChapters) =>
       rawChapters.map(
@@ -210,43 +225,63 @@ export default class MangadexSource extends AbstractMangaSource {
             title: rawChapter.attributes.title,
             language: rawChapter.attributes.translatedLanguage,
             size: rawChapter.attributes.pages,
+            downloadCover: () => Promise.resolve(null),
           })
       )
     );
 
-    return { content: sortChaptersByNumberAsc(chapters) };
-  }
-
-  public async fetchChapterById(id: string) {
-    const chapter = await this.fetchChapters({ ids: [id] }).then((chapters) =>
-      chapters.content.find(Boolean)
-    );
-    return { content: chapter ? [chapter] : [] };
-  }
-
-  public async fetchPagesByChapter(chapter: Chapter) {
-    return this.fetchPagesByChapterId(chapter.getId());
-  }
-
-  public async fetchPagesByChapterId(id: string) {
     return {
-      content: await this.webInstance
-        .get(`/at-home/server/${id}`)
-        .then<rawFetchedPageData>((res) => res.data)
-        .then((pagesData) => {
-          const baseUrl = `${pagesData.baseUrl}/data/${pagesData.chapter.hash}`;
-          return pagesData.chapter.data.map(
-            (pageUrlSuffix, i) =>
-              new Page({
-                id: `${i}`,
-                title: `${i}`,
-                uri: `${baseUrl}/${pageUrlSuffix}`,
-                download: () =>
-                  this.downloadFile(`${baseUrl}/${pageUrlSuffix}`),
-              })
-          );
-        }),
-    };
+      limit: chapters.length,
+      offset: 0,
+      total: chapters.length,
+      content: sortChaptersByNumberAsc(chapters),
+    } as X;
+  }
+
+  public async fetchChapterById(id: string, options: W) {
+    const chapter = await this.fetchChapters({ ...options, ids: [id] }).then(
+      (chapters) => chapters.content.find(Boolean)
+    );
+    return {
+      limit: 1,
+      offset: 0,
+      total: 1,
+      content: chapter ? [chapter] : [],
+    } as X;
+  }
+
+  public async fetchPagesByChapter(chapter: Chapter, options: Y) {
+    return this.fetchPagesByChapterId(chapter.getDetails().id, {
+      language: chapter.getDetails().language,
+      ...options,
+    });
+  }
+
+  public async fetchPagesByChapterId(id: string, options: Y) {
+    const { defaultLanguage } = this.getSettings();
+    const language = options.language || defaultLanguage;
+    const pages: Array<Page> = await this.webInstance
+      .get(`/at-home/server/${id}`)
+      .then<rawFetchedPageData>((res) => res.data)
+      .then((pagesData) => {
+        const baseUrl = `${pagesData.baseUrl}/data/${pagesData.chapter.hash}`;
+        return pagesData.chapter.data.map(
+          (pageUrlSuffix, i) =>
+            new Page({
+              id: `${i}`,
+              title: `${i}`,
+              language: language,
+              uri: `${baseUrl}/${pageUrlSuffix}`,
+              download: () => this.downloadFile(`${baseUrl}/${pageUrlSuffix}`),
+            })
+        );
+      });
+    return {
+      limit: pages.length,
+      offset: 0,
+      total: pages.length,
+      content: pages,
+    } as Z;
   }
 
   //TODO: set options type
@@ -286,20 +321,22 @@ export default class MangadexSource extends AbstractMangaSource {
       .then((res) => res.data);
   }
 
-  private async fetchRawChaptersByIds(
-    ids: Array<string> = [],
-    options: any = {}
-  ) {
+  private async fetchRawChaptersByIds(ids: Array<string> = [], options: W) {
     const limit = MANGADEX_ELEMENT_NUMBER_LIMIT;
     const splitedIds = arrayUtils.splitArrayInMaxSizeChunks(ids, limit);
+
+    const { defaultLanguage } = this.getSettings();
+    const language = options.language || defaultLanguage;
 
     return promiseUtils.chainPromisesOnArray(
       splitedIds,
       async (idArray, results: Array<rawChapter>) => {
         const queryOptions = {
-          ...options,
+          translatedLanguage: [language],
           limit: limit,
           ids: idArray,
+          title: options.text,
+          //TODO: order
         };
         const res = await this.webInstance
           .get(`/chapter`, { params: queryOptions })
