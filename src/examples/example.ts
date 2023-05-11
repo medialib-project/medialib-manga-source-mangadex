@@ -2,7 +2,7 @@ import fs from 'fs';
 import { Readable } from 'stream';
 import path from 'path';
 import { Page } from '@medialib/medialib-manga';
-import MangadexMangaSourceAddon from './MangadexMangaSourceAddon';
+import MangadexMangaSourceAddon from '../MangadexMangaSourceAddon';
 
 const downloadFolder = path.normalize('./dl');
 

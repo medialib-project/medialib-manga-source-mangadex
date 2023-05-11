@@ -92,19 +92,6 @@ export default class MangadexSource<
     });
   }
 
-  public async getFetchOptionsDefinition() {
-    return {
-      limit: { type: 'number', defaultValue: MANGADEX_ELEMENT_NUMBER_LIMIT },
-      offset: { type: 'number', defaultValue: 0 },
-      ids: { type: 'array' },
-      text: { type: 'string' },
-      language: {
-        type: 'string',
-        defaultValue: this.getSettings().defaultLanguage,
-      },
-    } as optionDefinition<U>;
-  }
-
   public async fetchMangas(options: U) {
     const { defaultLanguage } = this.getSettings();
     const language = options.language || defaultLanguage;
@@ -190,6 +177,19 @@ export default class MangadexSource<
     } as V;
   }
 
+  public async getFetchMangaOptionsDefinition() {
+    return {
+      limit: { type: 'number', defaultValue: MANGADEX_ELEMENT_NUMBER_LIMIT },
+      offset: { type: 'number', defaultValue: 0 },
+      ids: { type: 'array' },
+      text: { type: 'string' },
+      language: {
+        type: 'string',
+        defaultValue: this.getSettings().defaultLanguage,
+      },
+    } as optionDefinition<U>;
+  }
+
   public async fetchChaptersByManga(manga: Manga, options: W) {
     return this.fetchChaptersByMangaId(manga.getDetails().id, {
       language: manga.getDetails().language,
@@ -250,6 +250,19 @@ export default class MangadexSource<
     } as X;
   }
 
+  public async getFetchChapterOptionsDefinition() {
+    return {
+      limit: { type: 'number', defaultValue: MANGADEX_ELEMENT_NUMBER_LIMIT },
+      offset: { type: 'number', defaultValue: 0 },
+      ids: { type: 'array' },
+      text: { type: 'string' },
+      language: {
+        type: 'string',
+        defaultValue: this.getSettings().defaultLanguage,
+      },
+    } as optionDefinition<W>;
+  }
+
   public async fetchPagesByChapter(chapter: Chapter, options: Y) {
     return this.fetchPagesByChapterId(chapter.getDetails().id, {
       language: chapter.getDetails().language,
@@ -282,6 +295,19 @@ export default class MangadexSource<
       total: pages.length,
       content: pages,
     } as Z;
+  }
+
+  public async getFetchPageOptionsDefinition() {
+    return {
+      limit: { type: 'number', defaultValue: MANGADEX_ELEMENT_NUMBER_LIMIT },
+      offset: { type: 'number', defaultValue: 0 },
+      ids: { type: 'array' },
+      text: { type: 'string' },
+      language: {
+        type: 'string',
+        defaultValue: this.getSettings().defaultLanguage,
+      },
+    } as optionDefinition<Y>;
   }
 
   //TODO: set options type
